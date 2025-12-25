@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/softcase/Projects/Chess AI/cpp_engine/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
