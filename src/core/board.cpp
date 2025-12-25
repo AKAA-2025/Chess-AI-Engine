@@ -45,17 +45,17 @@ void Board::_updateOccupancy() {
 bool Board::isOccupied(uint64_t piece, int square) {
     if (square < 1 || square > 64) return false;
 
-    return piece & (1 << square-1);
+    return piece & (1ULL << square-1);
 }
 
 void Board::takePieceFrom(uint64_t piece, int square) {
     if (square < 1 || square > 64) return;
 
-    piece &= ~(1 << square-1);
+    piece &= ~(1ULL << square-1);
 }
 
 void Board::putPieceOn(uint64_t piece, int square) {
     if (square < 1 || square > 64) return;
 
-    piece |= (1 << square-1);
+    piece |= (1ULL << square-1);
 }
