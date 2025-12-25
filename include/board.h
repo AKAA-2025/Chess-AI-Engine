@@ -24,7 +24,6 @@ public:
     Board();
     
     uint64_t white_pawns;
-    uint64_t white_pawns;
     uint64_t white_rooks;
     uint64_t white_knights;
     uint64_t white_bishops;
