@@ -27,19 +27,17 @@ public:
     uint64_t white_rooks;
     uint64_t white_knights;
     uint64_t white_bishops;
-    uint64_t white_queen;
-    uint64_t white_king;
+    uint64_t white_queens;
+    uint64_t white_kings;
 
     uint64_t black_pawns;
     uint64_t black_rooks;
     uint64_t black_knights;
     uint64_t black_bishops;
-    uint64_t black_queen;
-    uint64_t black_king;
+    uint64_t black_queens;
+    uint64_t black_kings;
 
-    uint64_t white_occ;
-    uint64_t black_occ;
-    uint64_t occ;
+    bool white_to_move;
 
     /**
      * @param piece The piece to check for (e.g. black_rooks)
@@ -47,14 +45,26 @@ public:
      */
     bool isOccupied(uint64_t piece, int square);
     /**
-     * @param The square to check (1-64)
+     * @param piece The piece (e.g. black_rooks)
+     * @param square The square (1-64)
      */
     void takePieceFrom(uint64_t piece, int square);
     /**
-     * @param The square to check (1-64)
+     * @param piece The piece (e.g. black_rooks)
+     * @param square The square (1-64)
      */
     void putPieceOn(uint64_t piece, int square);
 
+    void whiteCanCastleKS();
+    void whiteCanCastleQS();
+    void blackCanCastleKS();
+    void blackCanCastleQS();
+
+    bool isGameOver();
+    bool isWhiteMated();
+    bool isBlackMated();
+    bool isDraw();
+
 private:
-    void _updateOccupancy();
+    uint8_t _castling_right;
 };

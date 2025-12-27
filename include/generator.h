@@ -13,4 +13,5 @@ public:
 private:
     void _initAttackTables();
     uint64_t _computeKnightAttacks();
+    
 };
