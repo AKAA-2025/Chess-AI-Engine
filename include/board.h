@@ -56,12 +56,12 @@ public:
      * @param piece The piece (e.g. black_rooks)
      * @param square The square (1-64)
      */
-    void takePieceFrom(uint64_t piece, int square);
+    void takePieceFrom(PieceType pieceType, int square);
     /**
      * @param piece The piece (e.g. black_rooks)
      * @param square The square (1-64)
      */
-    void putPieceOn(uint64_t piece, int square);
+    void putPieceOn(PieceType pieceType, int square);
 
     bool isWhiteTurn();
 

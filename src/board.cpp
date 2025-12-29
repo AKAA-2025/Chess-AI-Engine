@@ -28,16 +28,16 @@ bool Board::isOccupied(int square) {
     return positions[occ] & (1ULL << square-1);
 }
 
-void Board::takePieceFrom(uint64_t piece, int square) {
+void Board::takePieceFrom(PieceType pieceType, int square) {
     if (square < 1 || square > 64) return;
 
-    piece &= ~(1ULL << square-1);
+    Board::positions[pieceType] &= ~(1ULL << square-1);
 }
 
-void Board::putPieceOn(uint64_t piece, int square) {
+void Board::putPieceOn(PieceType pieceType, int square) {
     if (square < 1 || square > 64) return;
 
-    piece |= (1ULL << square-1);
+    Board::positions[pieceType] |= (1ULL << square-1);
 }
 
 void Board::_updateOccupancy() {
