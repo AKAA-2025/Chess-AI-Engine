@@ -19,6 +19,8 @@ Board::Board() {
 
     positions[en_passant] = 0x0;
 
+    _packed_info = 0x1F;
+
     _updateOccupancy();
 }
 
@@ -32,12 +34,14 @@ void Board::takePieceFrom(PieceType pieceType, int square) {
     if (square < 1 || square > 64) return;
 
     Board::positions[pieceType] &= ~(1ULL << square-1);
+    Board::_updateOccupancy();
 }
 
 void Board::putPieceOn(PieceType pieceType, int square) {
     if (square < 1 || square > 64) return;
 
     Board::positions[pieceType] |= (1ULL << square-1);
+    Board::_updateOccupancy();
 }
 
 void Board::_updateOccupancy() {
