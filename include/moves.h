@@ -1,11 +1,10 @@
 #pragma once
 #include <string>
 
-class Move {
-public:
+struct Move {
     int from;
     int to;
     std::string notation;
-
-    Move(int f, int t, const std::string& n) : from(f), to(t), notation(n) {}
 };
+
+struct Move getMove(int f, int to, const std::string notation);

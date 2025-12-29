@@ -9,7 +9,7 @@ BitSet::BitSet() {
     };
 }
 
-int BitSet::countSetBits64(int x) {
+int BitSet::countSetBits64(uint64_t x) {
     return (
         BitsSetTable256[x & 0xff] +
         BitsSetTable256[(x >> 8)  & 0xff] +

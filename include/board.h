@@ -19,31 +19,39 @@
 #define FILE_G 0x4040404040404040
 #define FILE_H 0x8080808080808080
 
+typedef enum {
+    white_pawn,
+    white_rook,
+    white_knight,
+    white_bishop,
+    white_queen,
+    white_king,
+
+    black_pawn,
+    black_rook,
+    black_knight,
+    black_bishop,
+    black_queen,
+    black_king,
+
+    white_occ,
+    black_occ,
+    occ,
+
+    en_passant
+} PieceType;
+
 class Board {
 public:
     Board();
     
-    uint64_t white_pawns;
-    uint64_t white_rooks;
-    uint64_t white_knights;
-    uint64_t white_bishops;
-    uint64_t white_queens;
-    uint64_t white_kings;
-
-    uint64_t black_pawns;
-    uint64_t black_rooks;
-    uint64_t black_knights;
-    uint64_t black_bishops;
-    uint64_t black_queens;
-    uint64_t black_kings;
-
-    bool white_to_move;
+    uint64_t positions[16] = {0UL};
 
     /**
      * @param piece The piece to check for (e.g. black_rooks)
      * @param square The square to check (1-64)
      */
-    bool isOccupied(uint64_t piece, int square);
+    bool isOccupied(int square);
     /**
      * @param piece The piece (e.g. black_rooks)
      * @param square The square (1-64)
@@ -55,10 +63,12 @@ public:
      */
     void putPieceOn(uint64_t piece, int square);
 
-    void whiteCanCastleKS();
-    void whiteCanCastleQS();
-    void blackCanCastleKS();
-    void blackCanCastleQS();
+    bool isWhiteTurn();
+
+    bool whiteCanCastleKS();
+    bool whiteCanCastleQS();
+    bool blackCanCastleKS();
+    bool blackCanCastleQS();
 
     bool isGameOver();
     bool isWhiteMated();
@@ -66,5 +76,18 @@ public:
     bool isDraw();
 
 private:
-    uint8_t _castling_right;
+    /**
+     * # From LSB to MSB
+     * 
+     * Bit 1 : Turn to move (1 = white, 0 = black)
+     * 
+     * # For bit 1-4, 0 means false and 1 means true
+     * Bit 2 : White can castle king side
+     * Bit 3 : White can castle queen side
+     * Bit 4 : Black can castle king side
+     * Bit 5 : Black can castle queen side
+     */
+    uint8_t _packed_info;
+
+    void _updateOccupancy();
 };
