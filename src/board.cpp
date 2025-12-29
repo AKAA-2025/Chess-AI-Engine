@@ -1,4 +1,5 @@
 #include "board.h"
+#include <cstring>
 
 Board::Board() {
     // White positions: posx + (0 * 8)
@@ -33,15 +34,15 @@ bool Board::isOccupied(int square) {
 void Board::takePieceFrom(PieceType pieceType, int square) {
     if (square < 1 || square > 64) return;
 
-    Board::positions[pieceType] &= ~(1ULL << square-1);
-    Board::_updateOccupancy();
+    positions[pieceType] &= ~(1ULL << square-1);
+    _updateOccupancy();
 }
 
 void Board::putPieceOn(PieceType pieceType, int square) {
     if (square < 1 || square > 64) return;
 
-    Board::positions[pieceType] |= (1ULL << square-1);
-    Board::_updateOccupancy();
+    positions[pieceType] |= (1ULL << square-1);
+    _updateOccupancy();
 }
 
 void Board::_updateOccupancy() {
@@ -84,4 +85,101 @@ bool Board::blackCanCastleKS() {
 
 bool Board::blackCanCastleQS() {
     return (_packed_info >> 4) & 1;
+}
+
+int Board::getPieceAt(int square) const {
+    if (square < 1 || square > 64) return -1;
+    uint64_t mask = 1ULL << (square - 1);
+    
+    // Check each piece type
+    for (int i = white_pawn; i <= black_king; i++) {
+        if (positions[i] & mask) return i;
+    }
+    return -1; // Empty square
+}
+
+void Board::toogleTurn() {
+    _packed_info ^= 0x1;
+}
+
+void Board::setWhiteCanCastleKS(bool can) {
+    if (can) _packed_info |= (1 << 1);
+    else _packed_info &= ~(1 << 1);
+}
+
+void Board::setWhiteCanCastleQS(bool can) {
+    if (can) _packed_info |= (1 << 2);
+    else _packed_info &= ~(1 << 2);
+}
+
+void Board::setBlackCanCastleKS(bool can) {
+    if (can) _packed_info |= (1 << 3);
+    else _packed_info &= ~(1 << 3);
+}
+
+void Board::setBlackCanCastleQS(bool can) {
+    if (can) _packed_info |= (1 << 4);
+    else _packed_info &= ~(1 << 4);
+}
+
+void Board::copyPositions(uint64_t dest[16]) const {
+    std::memcpy(dest, positions, sizeof(uint64_t) * 16);
+}
+
+void Board::restorePositions(const uint64_t src[16]) {
+    std::memcpy(positions, src, sizeof(uint64_t) * 16);
+}
+
+bool Board::makeMove(const Move& move) {
+    // Implementation needed - this is complex and depends on your move format
+    // This should:
+    // 1. Remove piece from 'from' square
+    // 2. Place piece on 'to' square
+    // 3. Handle captures
+    // 4. Update castling rights
+    // 5. Update en passant square
+    // 6. Toggle turn
+    // 7. Call _updateOccupancy()
+
+    UndoInfo undo;
+    undo.old_en_passant = positions[en_passant];
+    undo.old_packed_info = _packed_info;
+    undo.move = move;
+    
+    int from_sq = move.from;
+    int to_sq = move.to;
+    
+    PieceType moving_piece = static_cast<PieceType>(getPieceAt(move.from));
+    
+    // Handle captures
+    int captured = getPieceAt(move.to);
+    if (captured != -1) {
+        undo.captured_piece_type = static_cast<PieceType>(captured);
+        undo.captured_piece_bb = positions[captured];
+        takePieceFrom(static_cast<PieceType>(captured), to_sq);
+    }
+    
+    // Move the piece
+    takePieceFrom(moving_piece, from_sq);
+    putPieceOn(moving_piece, to_sq);
+    
+    // Handle special moves (castling, en passant, promotion)
+    // ... implement these ...
+    
+    // Update en passant
+    positions[en_passant] = 0;
+    // If pawn double push, set en passant square
+    
+    // Update castling rights
+    // ... implement these ...
+    
+    // Toggle turn
+    toogleTurn();
+    
+    // Update occupancy
+    _updateOccupancy();
+    
+    _undo_stack.push_back(undo);
+    
+    return true;
 }

@@ -262,7 +262,7 @@ void Worker::generatePawnMoves(std::vector<Move>& moves, bool capturesOnly) {
                 if (rank == promoRank - (isWhite ? 1 : -1)) {
                     addPawnPromotions(moves, from, to, false);
                 } else {
-                    moves.push_back(getMove(from + 1, to + 1, 
+                    moves.push_back(Move(from + 1, to + 1, 
                         squareToAlgebraic(from) + squareToAlgebraic(to)));
                 }
                 
@@ -270,7 +270,7 @@ void Worker::generatePawnMoves(std::vector<Move>& moves, bool capturesOnly) {
                 if (rank == startRank) {
                     int doubleTo = from + 2 * direction;
                     if (empty & (1ULL << doubleTo)) {
-                        moves.push_back(getMove(from + 1, doubleTo + 1, 
+                        moves.push_back(Move(from + 1, doubleTo + 1, 
                             squareToAlgebraic(from) + squareToAlgebraic(doubleTo)));
                     }
                 }
@@ -288,7 +288,7 @@ void Worker::generatePawnMoves(std::vector<Move>& moves, bool capturesOnly) {
             if (rank == promoRank - (isWhite ? 1 : -1)) {
                 addPawnPromotions(moves, from, to, true);
             } else {
-                moves.push_back(getMove(from + 1, to + 1, 
+                moves.push_back(Move(from + 1, to + 1, 
                     squareToAlgebraic(from) + "x" + squareToAlgebraic(to)));
             }
         }
@@ -298,7 +298,7 @@ void Worker::generatePawnMoves(std::vector<Move>& moves, bool capturesOnly) {
             uint64_t enPassantSquare = board->positions[en_passant];
             if (attacks & enPassantSquare) {
                 int to = Utils::getLSB(enPassantSquare);
-                moves.push_back(getMove(from + 1, to + 1, 
+                moves.push_back(Move(from + 1, to + 1, 
                     squareToAlgebraic(from) + "x" + squareToAlgebraic(to) + "e.p."));
             }
         }
@@ -390,7 +390,7 @@ void Worker::generateCastlingMoves(std::vector<Move>& moves) {
             if (!(occ & ((1ULL << 5) | (1ULL << 6)))) { // f1, g1 empty
                 if (!isSquareAttacked(4, false) && !isSquareAttacked(5, false) && 
                     !isSquareAttacked(6, false)) {
-                    moves.push_back(getMove(5, 7, "O-O")); // e1 to g1
+                    moves.push_back(Move(5, 7, "O-O")); // e1 to g1
                 }
             }
         }
@@ -399,7 +399,7 @@ void Worker::generateCastlingMoves(std::vector<Move>& moves) {
             if (!(occ & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3)))) { // b1, c1, d1 empty
                 if (!isSquareAttacked(4, false) && !isSquareAttacked(3, false) && 
                     !isSquareAttacked(2, false)) {
-                    moves.push_back(getMove(5, 3, "O-O-O")); // e1 to c1
+                    moves.push_back(Move(5, 3, "O-O-O")); // e1 to c1
                 }
             }
         }
@@ -409,7 +409,7 @@ void Worker::generateCastlingMoves(std::vector<Move>& moves) {
             if (!(occ & ((1ULL << 61) | (1ULL << 62)))) { // f8, g8 empty
                 if (!isSquareAttacked(60, true) && !isSquareAttacked(61, true) && 
                     !isSquareAttacked(62, true)) {
-                    moves.push_back(getMove(61, 63, "O-O")); // e8 to g8
+                    moves.push_back(Move(61, 63, "O-O")); // e8 to g8
                 }
             }
         }
@@ -418,7 +418,7 @@ void Worker::generateCastlingMoves(std::vector<Move>& moves) {
             if (!(occ & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59)))) { // b8, c8, d8 empty
                 if (!isSquareAttacked(60, true) && !isSquareAttacked(59, true) && 
                     !isSquareAttacked(58, true)) {
-                    moves.push_back(getMove(61, 59, "O-O-O")); // e8 to c8
+                    moves.push_back(Move(61, 59, "O-O-O")); // e8 to c8
                 }
             }
         }
@@ -434,16 +434,16 @@ void Worker::addMovesFromBitboard(std::vector<Move>& moves, int from, uint64_t t
         bool thisIsCapture = board->isOccupied(to + 1);
         std::string notation = pieceSymbol + squareToAlgebraic(from) + 
                                (thisIsCapture ? "x" : "") + squareToAlgebraic(to);
-        moves.push_back(getMove(from + 1, to + 1, notation));
+        moves.push_back(Move(from + 1, to + 1, notation));
     }
 }
 
 void Worker::addPawnPromotions(std::vector<Move>& moves, int from, int to, bool isCapture) {
     std::string base = squareToAlgebraic(from) + (isCapture ? "x" : "") + squareToAlgebraic(to);
-    moves.push_back(getMove(from + 1, to + 1, base + "=Q"));
-    moves.push_back(getMove(from + 1, to + 1, base + "=R"));
-    moves.push_back(getMove(from + 1, to + 1, base + "=B"));
-    moves.push_back(getMove(from + 1, to + 1, base + "=N"));
+    moves.push_back(Move(from + 1, to + 1, base + "=Q"));
+    moves.push_back(Move(from + 1, to + 1, base + "=R"));
+    moves.push_back(Move(from + 1, to + 1, base + "=B"));
+    moves.push_back(Move(from + 1, to + 1, base + "=N"));
 }
 
 std::string Worker::squareToAlgebraic(int square) {

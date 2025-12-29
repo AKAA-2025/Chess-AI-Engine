@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "moves.h"
 
 #define RANK_1 0x00000000000000FF
 #define RANK_2 0x000000000000FF00
@@ -41,6 +42,14 @@ typedef enum {
     en_passant
 } PieceType;
 
+struct UndoInfo {
+    uint64_t captured_piece_bb;
+    PieceType captured_piece_type;
+    uint64_t old_en_passant;
+    uint8_t old_packed_info;
+    Move move;
+};
+
 class Board {
 public:
     Board();
@@ -64,30 +73,65 @@ public:
     void putPieceOn(PieceType pieceType, int square);
 
     bool isWhiteTurn();
-
     bool whiteCanCastleKS();
     bool whiteCanCastleQS();
     bool blackCanCastleKS();
     bool blackCanCastleQS();
 
-    bool isGameOver();
-    bool isWhiteMated();
-    bool isBlackMated();
-    bool isDraw();
+     /**
+     * Make a move on the board (updates bitboards and game state)
+     * @param move The move to make
+     * @return true if move was successfully made
+     */
+    bool makeMove(const Move& move);
+    
+    /**
+     * Take back the last move
+     */
+    void unmakeMove();
+    
+    /**
+     * Get the piece type at a given square
+     * @param square The square (1-64)
+     * @return PieceType or -1 if empty
+     */
+    int getPieceAt(int square) const;
+    
+    /**
+     * Update packed info (call this after modifying _packed_info bits)
+     */
+    void toogleTurn();
+    void setWhiteCanCastleKS(bool can);
+    void setWhiteCanCastleQS(bool can);
+    void setBlackCanCastleKS(bool can);
+    void setBlackCanCastleQS(bool can);
+    
+    /**
+     * Get a copy of positions (useful for saving state)
+     */
+    void copyPositions(uint64_t dest[16]) const;
+    void restorePositions(const uint64_t src[16]);
+    
+    /**
+     * Get packed info (for saving/restoring state)
+     */
+    uint8_t getPackedInfo() const { return _packed_info; }
+    void setPackedInfo(uint8_t info) { _packed_info = info; }
 
 private:
     /**
-     * # From LSB to MSB
+     * From LSB to MSB
      * 
      * Bit 1 : Turn to move (1 = white, 0 = black)
      * 
-     * # For bit 1-4, 0 means false and 1 means true
+     * For bit 1-4, 0 means false and 1 means true
      * Bit 2 : White can castle king side
      * Bit 3 : White can castle queen side
      * Bit 4 : Black can castle king side
      * Bit 5 : Black can castle queen side
      */
     uint8_t _packed_info;
+    std::vector<UndoInfo> _undo_stack;
 
     void _updateOccupancy();
 };
