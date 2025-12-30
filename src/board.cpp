@@ -2,6 +2,8 @@
 #include <cstring>
 
 Board::Board() {
+    std::memset(positions, 0, sizeof(positions));
+
     // White positions: posx + (0 * 8)
     positions[white_pawn]   = RANK_2;
     positions[white_rook]   = (1ULL << 0) | (1ULL << 7);
@@ -20,9 +22,102 @@ Board::Board() {
 
     positions[en_passant] = 0x0;
 
+    half_clock = 0U;
+
     _packed_info = 0x1F;
 
     _updateOccupancy();
+}
+
+Board::Board(const char *fen) {
+    std::memset(positions, 0, sizeof(positions));
+
+    char buf[256];
+    std::strncpy(buf, fen, sizeof(buf));
+
+    char *token = strtok(buf, " ");
+    if (!token) return;
+    _fenImportBoard(token);
+
+    token = strtok(NULL, " ");
+    if (!token) return;
+    setTurn(token[0] == 'w');
+    
+    token = strtok(NULL, " ");
+    if (!token) return;
+    setPackedInfo(0x00);
+    for (int i = 0; token[i] != '\0'; ++i) {
+        switch (token[i]) {
+            case 'K':
+                setWhiteCanCastleKS(true);
+                break;
+            case 'Q':
+                setWhiteCanCastleQS(true);
+                break;
+            case 'k':
+                setBlackCanCastleKS(true);
+                break;
+            case 'q':
+                setBlackCanCastleQS(true);
+                break;
+            default:
+                break;
+        }
+    }
+
+    token = strtok(NULL, " ");
+    if (!token) return;
+    if (token[0] != '-') {
+        positions[en_passant] |= 1ULL << ((token[0] - 'a') + (token[1] - '1') * 8);
+    }
+
+    token = strtok(NULL, " ");
+    if (!token) return;
+    half_clock = std::atoi(token);
+
+    // Full move counter is ignored since it doesnt help the engine
+
+    _updateOccupancy();
+}
+
+void Board::_fenImportBoard(const char* boardFen) {
+    int rank = 7;
+    int file = 0;
+
+    for (int i = 0; boardFen[i] != '\0'; ++i) {
+        char c = boardFen[i];
+
+        if (c == '/') {
+            rank--;
+            file = 0;
+            continue;
+        }
+
+        if (c >= '1' && c <= '8') {
+            file += c - '0';
+            continue;
+        }
+
+        int sq = rank * 8 + file;
+        uint64_t bit = 1ULL << sq;
+
+        switch (c) {
+            case 'p': positions[black_pawn]   |= bit; break;
+            case 'n': positions[black_knight] |= bit; break;
+            case 'b': positions[black_bishop] |= bit; break;
+            case 'r': positions[black_rook]   |= bit; break;
+            case 'q': positions[black_queen]  |= bit; break;
+            case 'k': positions[black_king]   |= bit; break;
+            case 'P': positions[white_pawn]   |= bit; break;
+            case 'N': positions[white_knight] |= bit; break;
+            case 'B': positions[white_bishop] |= bit; break;
+            case 'R': positions[white_rook]   |= bit; break;
+            case 'Q': positions[white_queen]  |= bit; break;
+            case 'K': positions[white_king]   |= bit; break;
+        }
+
+        file++;
+    }
 }
 
 bool Board::isOccupied(int square) {
@@ -100,6 +195,11 @@ int Board::getPieceAt(int square) const {
 
 void Board::toogleTurn() {
     _packed_info ^= 0x1;
+}
+
+void Board::setTurn(bool isWhite) {
+    if (isWhite) _packed_info |= (1);
+    else _packed_info &= ~(1);
 }
 
 void Board::setWhiteCanCastleKS(bool can) {

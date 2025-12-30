@@ -295,11 +295,14 @@ void Worker::generatePawnMoves(std::vector<Move>& moves, bool capturesOnly) {
         
         // En passant
         if (board->positions[en_passant]) {
-            uint64_t enPassantSquare = board->positions[en_passant];
-            if (attacks & enPassantSquare) {
-                int to = Utils::getLSB(enPassantSquare);
-                moves.push_back(Move(from + 1, to + 1, 
-                    squareToAlgebraic(from) + "x" + squareToAlgebraic(to) + "e.p."));
+            bool canEnPassant = (isWhite && rank == 4) || (!isWhite && rank == 3);
+            if (canEnPassant) {
+                uint64_t enPassantSquare = board->positions[en_passant];
+                if (attacks & enPassantSquare) {
+                    int to = Utils::getLSB(enPassantSquare);
+                    moves.push_back(Move(from+1, to+1, 
+                        squareToAlgebraic(from) + "x" + squareToAlgebraic(to) + "e.p."));
+                }
             }
         }
     }

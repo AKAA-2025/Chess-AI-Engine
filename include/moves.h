@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include "pieces.h"
 
 enum MoveType {
     NORMAL,

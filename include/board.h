@@ -1,6 +1,9 @@
 #pragma once
+
 #include <cstdint>
+#include <vector>
 #include "moves.h"
+#include "pieces.h"
 
 #define RANK_1 0x00000000000000FF
 #define RANK_2 0x000000000000FF00
@@ -20,28 +23,6 @@
 #define FILE_G 0x4040404040404040
 #define FILE_H 0x8080808080808080
 
-typedef enum {
-    white_pawn,
-    white_rook,
-    white_knight,
-    white_bishop,
-    white_queen,
-    white_king,
-
-    black_pawn,
-    black_rook,
-    black_knight,
-    black_bishop,
-    black_queen,
-    black_king,
-
-    white_occ,
-    black_occ,
-    occ,
-
-    en_passant
-} PieceType;
-
 struct UndoInfo {
     uint64_t captured_piece_bb;
     PieceType captured_piece_type;
@@ -53,8 +34,10 @@ struct UndoInfo {
 class Board {
 public:
     Board();
+    Board(const char *fen);
     
-    uint64_t positions[16] = {0UL};
+    uint64_t positions[16];
+    uint8_t half_clock;
 
     /**
      * @param piece The piece to check for (e.g. black_rooks)
@@ -72,11 +55,26 @@ public:
      */
     void putPieceOn(PieceType pieceType, int square);
 
+    /**
+     * Get the piece type at a given square
+     * @param square The square (1-64)
+     * @return PieceType or -1 if empty
+     */
+    int getPieceAt(int square) const;
+
     bool isWhiteTurn();
     bool whiteCanCastleKS();
     bool whiteCanCastleQS();
     bool blackCanCastleKS();
     bool blackCanCastleQS();
+
+    void toogleTurn();
+
+    void setTurn(bool isWhite);
+    void setWhiteCanCastleKS(bool can);
+    void setWhiteCanCastleQS(bool can);
+    void setBlackCanCastleKS(bool can);
+    void setBlackCanCastleQS(bool can);
 
      /**
      * Make a move on the board (updates bitboards and game state)
@@ -89,22 +87,6 @@ public:
      * Take back the last move
      */
     void unmakeMove();
-    
-    /**
-     * Get the piece type at a given square
-     * @param square The square (1-64)
-     * @return PieceType or -1 if empty
-     */
-    int getPieceAt(int square) const;
-    
-    /**
-     * Update packed info (call this after modifying _packed_info bits)
-     */
-    void toogleTurn();
-    void setWhiteCanCastleKS(bool can);
-    void setWhiteCanCastleQS(bool can);
-    void setBlackCanCastleKS(bool can);
-    void setBlackCanCastleQS(bool can);
     
     /**
      * Get a copy of positions (useful for saving state)
@@ -132,6 +114,8 @@ private:
      */
     uint8_t _packed_info;
     std::vector<UndoInfo> _undo_stack;
+
+    void _fenImportBoard(const char *boardFen);
 
     void _updateOccupancy();
 };
