@@ -144,7 +144,6 @@ int Worker::getMaterialScore() {
 
 int Worker::getPieceSquareScore() {
     int score = 0;
-    bool endgame = isEndgame();
     
     // White pieces
     for (int pieceType = white_pawn; pieceType <= white_king; pieceType++) {
@@ -219,24 +218,16 @@ int Worker::getTotalMaterial() {
 
 int Worker::getMobilityScore() {
     // TODO: Implement mobility evaluation
-    // Count legal moves for both sides
     return 0;
 }
 
 int Worker::getPawnStructureScore() {
     // TODO: Implement pawn structure evaluation
-    // - Doubled pawns
-    // - Isolated pawns
-    // - Passed pawns
-    // - Pawn chains
     return 0;
 }
 
 int Worker::getKingSafetyScore() {
     // TODO: Implement king safety evaluation
-    // - Pawn shield
-    // - Open files near king
-    // - Attacking pieces
     return 0;
 }
 

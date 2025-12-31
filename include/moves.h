@@ -11,8 +11,8 @@ enum MoveType {
 };
 
 struct Move {
-    int from;           // 0-63
-    int to;             // 0-63
+    int from;           // 1-64 (1-based)
+    int to;             // 1-64 (1-based)
     std::string notation;
     MoveType type;
     PieceType promotionPiece; // Only used if type == PROMOTION

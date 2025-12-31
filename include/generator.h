@@ -76,8 +76,6 @@ namespace MoveGenerator {
         void addPawnPromotions(std::vector<Move>& moves, int from, int to, bool isCapture);
         std::string squareToAlgebraic(int square);
         int algebraicToSquare(const std::string& algebraic);
-        bool makeMove(const Move& move);
-        void unmakeMove(const Move& move, uint64_t oldPositions[16], uint8_t oldPackedInfo);
     };
     
     /**

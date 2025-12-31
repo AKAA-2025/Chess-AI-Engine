@@ -22,21 +22,6 @@ struct EngineOptions {
 };
 
 /**
- * Search limits and parameters
- */
-struct SearchLimits {
-    int depth = -1;            // Maximum depth (-1 = unlimited)
-    int movetime = -1;         // Time per move in ms (-1 = unlimited)
-    long long nodes = -1;      // Maximum nodes (-1 = unlimited)
-    int wtime = -1;            // White time remaining in ms
-    int btime = -1;            // Black time remaining in ms
-    int winc = 0;              // White increment per move in ms
-    int binc = 0;              // Black increment per move in ms
-    int movestogo = -1;        // Moves until next time control
-    bool infinite = false;     // Search until stop command
-};
-
-/**
  * Main chess engine class that manages the game state and search
  */
 class ChessEngine {
@@ -65,7 +50,7 @@ public:
      * Start searching for the best move
      * @param limits Search constraints and time management
      */
-    void startSearch(const SearchLimits& limits);
+    void startSearch(const Search::SearchLimits& limits);
     
     /**
      * Stop the current search
@@ -111,17 +96,17 @@ private:
     /**
      * The actual search function that runs in a separate thread
      */
-    void searchThreadFunc(const SearchLimits& limits);
-    
-    /**
-     * Calculate time allocation for this move based on time controls
-     */
-    int calculateMoveTime(const SearchLimits& limits);
+    void searchThreadFunc(const Search::SearchLimits& limits);
     
     /**
      * Apply a move in algebraic notation to the board
      */
     bool applyMove(const std::string& moveStr);
+    
+    /**
+     * Recreate workers after board change
+     */
+    void recreateWorkers();
 };
 
 /**
@@ -183,6 +168,16 @@ private:
     void handleQuit();
     
     /**
+     * Handle the 'd' (display) debug command
+     */
+    void handleDisplay();
+    
+    /**
+     * Handle the 'perft' command for testing
+     */
+    void handlePerft(std::istringstream& input);
+    
+    /**
      * Parse FEN and moves from position command
      */
     void parsePosition(std::istringstream& input, std::string& fen, 
@@ -191,7 +186,7 @@ private:
     /**
      * Parse search limits from go command
      */
-    SearchLimits parseGoLimits(std::istringstream& input);
+    Search::SearchLimits parseGoLimits(std::istringstream& input);
 };
 
 /**
@@ -207,12 +202,6 @@ namespace Utils {
      * Parse a UCI move string to a Move object
      */
     Move parseUCIMove(const std::string& uciMove, Board* board);
-    
-    /**
-     * Send info output during search
-     */
-    void sendInfo(int depth, int score, long long nodes, int time, 
-                  const std::vector<Move>& pv);
     
     /**
      * Send the best move found

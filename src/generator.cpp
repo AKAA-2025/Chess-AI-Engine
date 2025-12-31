@@ -253,13 +253,13 @@ void Worker::generatePawnMoves(std::vector<Move>& moves, bool capturesOnly) {
     while (pawns) {
         int from = Utils::popLSB(pawns);
         int rank = Utils::getRank(from);
-        int file = Utils::getFile(from);
         
         // Single push
         if (!capturesOnly) {
             int to = from + direction;
             if (to >= 0 && to < 64 && (empty & (1ULL << to))) {
-                if (rank == promoRank - (isWhite ? 1 : -1)) {
+                int toRank = Utils::getRank(to);
+                if (toRank == promoRank) {
                     addPawnPromotions(moves, from, to, false);
                 } else {
                     moves.push_back(Move(from + 1, to + 1, 
@@ -285,11 +285,12 @@ void Worker::generatePawnMoves(std::vector<Move>& moves, bool capturesOnly) {
         
         while (captures) {
             int to = Utils::popLSB(captures);
-            if (rank == promoRank - (isWhite ? 1 : -1)) {
+            int toRank = Utils::getRank(to);
+            if (toRank == promoRank) {
                 addPawnPromotions(moves, from, to, true);
             } else {
-                moves.push_back(Move(from + 1, to + 1, 
-                    squareToAlgebraic(from) + "x" + squareToAlgebraic(to)));
+                Move m(from + 1, to + 1, squareToAlgebraic(from) + "x" + squareToAlgebraic(to), CAPTURE);
+                moves.push_back(m);
             }
         }
         
@@ -300,8 +301,9 @@ void Worker::generatePawnMoves(std::vector<Move>& moves, bool capturesOnly) {
                 uint64_t enPassantSquare = board->positions[en_passant];
                 if (attacks & enPassantSquare) {
                     int to = Utils::getLSB(enPassantSquare);
-                    moves.push_back(Move(from+1, to+1, 
-                        squareToAlgebraic(from) + "x" + squareToAlgebraic(to) + "e.p."));
+                    Move m(from + 1, to + 1, 
+                        squareToAlgebraic(from) + "x" + squareToAlgebraic(to) + "e.p.", EN_PASSANT);
+                    moves.push_back(m);
                 }
             }
         }
@@ -385,43 +387,47 @@ void Worker::generateKingMoves(std::vector<Move>& moves, bool capturesOnly) {
 
 void Worker::generateCastlingMoves(std::vector<Move>& moves) {
     bool isWhite = board->isWhiteTurn();
-    uint64_t occ = board->positions[::occ];
+    uint64_t occupied = board->positions[occ];
     
     if (isWhite) {
         // Kingside castling
         if (board->whiteCanCastleKS()) {
-            if (!(occ & ((1ULL << 5) | (1ULL << 6)))) { // f1, g1 empty
+            if (!(occupied & ((1ULL << 5) | (1ULL << 6)))) { // f1, g1 empty
                 if (!isSquareAttacked(4, false) && !isSquareAttacked(5, false) && 
                     !isSquareAttacked(6, false)) {
-                    moves.push_back(Move(5, 7, "O-O")); // e1 to g1
+                    Move m(5, 7, "O-O", CASTLING);  // e1 to g1
+                    moves.push_back(m);
                 }
             }
         }
         // Queenside castling
         if (board->whiteCanCastleQS()) {
-            if (!(occ & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3)))) { // b1, c1, d1 empty
+            if (!(occupied & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3)))) { // b1, c1, d1 empty
                 if (!isSquareAttacked(4, false) && !isSquareAttacked(3, false) && 
                     !isSquareAttacked(2, false)) {
-                    moves.push_back(Move(5, 3, "O-O-O")); // e1 to c1
+                    Move m(5, 3, "O-O-O", CASTLING);  // e1 to c1
+                    moves.push_back(m);
                 }
             }
         }
     } else {
         // Kingside castling
         if (board->blackCanCastleKS()) {
-            if (!(occ & ((1ULL << 61) | (1ULL << 62)))) { // f8, g8 empty
+            if (!(occupied & ((1ULL << 61) | (1ULL << 62)))) { // f8, g8 empty
                 if (!isSquareAttacked(60, true) && !isSquareAttacked(61, true) && 
                     !isSquareAttacked(62, true)) {
-                    moves.push_back(Move(61, 63, "O-O")); // e8 to g8
+                    Move m(61, 63, "O-O", CASTLING);  // e8 to g8
+                    moves.push_back(m);
                 }
             }
         }
         // Queenside castling
         if (board->blackCanCastleQS()) {
-            if (!(occ & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59)))) { // b8, c8, d8 empty
+            if (!(occupied & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59)))) { // b8, c8, d8 empty
                 if (!isSquareAttacked(60, true) && !isSquareAttacked(59, true) && 
                     !isSquareAttacked(58, true)) {
-                    moves.push_back(Move(61, 59, "O-O-O")); // e8 to c8
+                    Move m(61, 59, "O-O-O", CASTLING);  // e8 to c8
+                    moves.push_back(m);
                 }
             }
         }
@@ -430,23 +436,37 @@ void Worker::generateCastlingMoves(std::vector<Move>& moves) {
 
 void Worker::addMovesFromBitboard(std::vector<Move>& moves, int from, uint64_t targets, 
                                    const std::string& pieceSymbol) {
-    bool isCapture = board->positions[board->isWhiteTurn() ? black_occ : white_occ] & targets;
+    uint64_t enemyOcc = board->isWhiteTurn() ? board->positions[black_occ] : board->positions[white_occ];
     
     while (targets) {
         int to = Utils::popLSB(targets);
-        bool thisIsCapture = board->isOccupied(to + 1);
+        bool isCapture = (enemyOcc & (1ULL << to)) != 0;
         std::string notation = pieceSymbol + squareToAlgebraic(from) + 
-                               (thisIsCapture ? "x" : "") + squareToAlgebraic(to);
-        moves.push_back(Move(from + 1, to + 1, notation));
+                               (isCapture ? "x" : "") + squareToAlgebraic(to);
+        Move m(from + 1, to + 1, notation, isCapture ? CAPTURE : NORMAL);
+        moves.push_back(m);
     }
 }
 
 void Worker::addPawnPromotions(std::vector<Move>& moves, int from, int to, bool isCapture) {
     std::string base = squareToAlgebraic(from) + (isCapture ? "x" : "") + squareToAlgebraic(to);
-    moves.push_back(Move(from + 1, to + 1, base + "=Q"));
-    moves.push_back(Move(from + 1, to + 1, base + "=R"));
-    moves.push_back(Move(from + 1, to + 1, base + "=B"));
-    moves.push_back(Move(from + 1, to + 1, base + "=N"));
+    bool isWhite = board->isWhiteTurn();
+    
+    Move queenPromo(from + 1, to + 1, base + "=Q", PROMOTION);
+    queenPromo.promotionPiece = isWhite ? white_queen : black_queen;
+    moves.push_back(queenPromo);
+    
+    Move rookPromo(from + 1, to + 1, base + "=R", PROMOTION);
+    rookPromo.promotionPiece = isWhite ? white_rook : black_rook;
+    moves.push_back(rookPromo);
+    
+    Move bishopPromo(from + 1, to + 1, base + "=B", PROMOTION);
+    bishopPromo.promotionPiece = isWhite ? white_bishop : black_bishop;
+    moves.push_back(bishopPromo);
+    
+    Move knightPromo(from + 1, to + 1, base + "=N", PROMOTION);
+    knightPromo.promotionPiece = isWhite ? white_knight : black_knight;
+    moves.push_back(knightPromo);
 }
 
 std::string Worker::squareToAlgebraic(int square) {
@@ -457,13 +477,13 @@ std::string Worker::squareToAlgebraic(int square) {
 }
 
 bool Worker::isSquareAttacked(int square, bool byWhite) {
-    uint64_t occ = board->positions[::occ];
+    uint64_t occupied = board->positions[occ];
     
     // Check pawn attacks
     if (byWhite) {
-        if (AttackTables::getWhitePawnAttacks(square) & board->positions[white_pawn]) return true;
+        if (AttackTables::getBlackPawnAttacks(square) & board->positions[white_pawn]) return true;
     } else {
-        if (AttackTables::getBlackPawnAttacks(square) & board->positions[black_pawn]) return true;
+        if (AttackTables::getWhitePawnAttacks(square) & board->positions[black_pawn]) return true;
     }
     
     // Check knight attacks
@@ -478,13 +498,13 @@ bool Worker::isSquareAttacked(int square, bool byWhite) {
     uint64_t bishops = byWhite ? 
         (board->positions[white_bishop] | board->positions[white_queen]) :
         (board->positions[black_bishop] | board->positions[black_queen]);
-    if (AttackTables::getBishopAttacks(square, occ) & bishops) return true;
+    if (AttackTables::getBishopAttacks(square, occupied) & bishops) return true;
     
     // Check rook/queen attacks
     uint64_t rooks = byWhite ? 
         (board->positions[white_rook] | board->positions[white_queen]) :
         (board->positions[black_rook] | board->positions[black_queen]);
-    if (AttackTables::getRookAttacks(square, occ) & rooks) return true;
+    if (AttackTables::getRookAttacks(square, occupied) & rooks) return true;
     
     return false;
 }
@@ -509,26 +529,17 @@ bool Worker::isPseudoLegal(const Move& move) {
 bool Worker::isLegal(const Move& move) {
     if (!isPseudoLegal(move)) return false;
     
-    // Save state
-    uint64_t oldPositions[16];
-    std::memcpy(oldPositions, board->positions, sizeof(oldPositions));
-    uint8_t oldPackedInfo = board->isWhiteTurn() | 
-                            (board->whiteCanCastleKS() << 1) |
-                            (board->whiteCanCastleQS() << 2) |
-                            (board->blackCanCastleKS() << 3) |
-                            (board->blackCanCastleQS() << 4);
+    // Make the move
+    if (!board->makeMove(move)) return false;
     
-    // Make move (simplified - you'll need to implement proper makeMove)
-    bool legal = true;
-    // ... make the move ...
+    // Check if the move leaves the king in check
+    // Note: After makeMove, it's the opponent's turn, so we check if our king is attacked
+    board->toogleTurn();  // Toggle back to check our king
+    bool legal = !isInCheck();
+    board->toogleTurn();  // Toggle back to opponent's turn
     
-    // Check if in check after move
-    if (isInCheck()) {
-        legal = false;
-    }
-    
-    // Restore state
-    std::memcpy(board->positions, oldPositions, sizeof(oldPositions));
+    // Unmake the move
+    board->unmakeMove();
     
     return legal;
 }
@@ -538,7 +549,18 @@ std::vector<Move> Worker::filterLegalMoves(const std::vector<Move>& pseudoMoves)
     legalMoves.reserve(pseudoMoves.size());
     
     for (const auto& move : pseudoMoves) {
-        if (isLegal(move)) {
+        // Make the move
+        if (!board->makeMove(move)) continue;
+        
+        // Check if the move leaves the king in check
+        board->toogleTurn();  // Toggle back to check our king
+        bool legal = !isInCheck();
+        board->toogleTurn();  // Toggle back
+        
+        // Unmake the move
+        board->unmakeMove();
+        
+        if (legal) {
             legalMoves.push_back(move);
         }
     }

@@ -24,9 +24,13 @@ void ChessEngine::init() {
     
     // Create initial position
     board = std::make_unique<Board>();
+    recreateWorkers();
+}
+
+void ChessEngine::recreateWorkers() {
     moveGen = std::make_unique<MoveGenerator::Worker>(board.get());
     evaluator = std::make_unique<Eval::Worker>(board.get());
-    searcher = std::make_unique<Search::Worker>(*moveGen, *evaluator);
+    searcher = std::make_unique<Search::Worker>(board.get(), moveGen.get(), evaluator.get());
 }
 
 void ChessEngine::newGame() {
@@ -34,9 +38,7 @@ void ChessEngine::newGame() {
     
     // Reset to starting position
     board = std::make_unique<Board>();
-    moveGen = std::make_unique<MoveGenerator::Worker>(board.get());
-    evaluator = std::make_unique<Eval::Worker>(board.get());
-    searcher = std::make_unique<Search::Worker>(*moveGen, *evaluator);
+    recreateWorkers();
 }
 
 void ChessEngine::setPosition(const std::string& fen, const std::vector<std::string>& moves) {
@@ -48,9 +50,7 @@ void ChessEngine::setPosition(const std::string& fen, const std::vector<std::str
     }
     
     // Recreate workers with new board
-    moveGen = std::make_unique<MoveGenerator::Worker>(board.get());
-    evaluator = std::make_unique<Eval::Worker>(board.get());
-    searcher = std::make_unique<Search::Worker>(*moveGen, *evaluator);
+    recreateWorkers();
     
     // Apply moves
     for (const auto& moveStr : moves) {
@@ -65,29 +65,36 @@ bool ChessEngine::applyMove(const std::string& moveStr) {
     // Parse UCI move (e.g., "e2e4", "e7e8q")
     if (moveStr.length() < 4) return false;
     
-    int fromSquare = (moveStr[0] - 'a') + (moveStr[1] - '1') * 8;
-    int toSquare = (moveStr[2] - 'a') + (moveStr[3] - '1') * 8;
+    Move move = Utils::parseUCIMove(moveStr, board.get());
     
-    // Get all legal moves and find matching one
-    std::vector<Move> moves = moveGen->generateAllMoves();
-    std::vector<Move> legalMoves = moveGen->filterLegalMoves(moves);
+    if (move.from == 0 && move.to == 0) {
+        return false;
+    }
     
-    for (const auto& move : legalMoves) {
-        // Compare from and to squares
-        // Note: You'll need to add methods to Move class to get from/to squares
-        // or parse the move string format your Move class uses
-        
-        // For now, try to make the move and see if it works
-        Move candidate = Utils::parseUCIMove(moveStr, board.get());
-        if (board->makeMove(candidate)) {
-            return true;
+    // Verify it's a legal move
+    std::vector<Move> pseudoMoves = moveGen->generateAllMoves();
+    std::vector<Move> legalMoves = moveGen->filterLegalMoves(pseudoMoves);
+    
+    for (const auto& legal : legalMoves) {
+        if (legal.from == move.from && legal.to == move.to) {
+            // Handle promotion
+            if (move.type == PROMOTION) {
+                // Find the matching promotion piece
+                for (const auto& promo : legalMoves) {
+                    if (promo.from == move.from && promo.to == move.to && 
+                        promo.promotionPiece == move.promotionPiece) {
+                        return board->makeMove(promo);
+                    }
+                }
+            }
+            return board->makeMove(legal);
         }
     }
     
     return false;
 }
 
-void ChessEngine::startSearch(const SearchLimits& limits) {
+void ChessEngine::startSearch(const Search::SearchLimits& limits) {
     if (searching) stopSearch();
     
     searching = true;
@@ -97,98 +104,41 @@ void ChessEngine::startSearch(const SearchLimits& limits) {
         searchThreadFunc(limits);
     });
     
-    searchThread.detach();
+    // Wait for search to complete
+    searchThread.join();
 }
 
-void ChessEngine::searchThreadFunc(const SearchLimits& limits) {
-    auto startTime = std::chrono::steady_clock::now();
-    
-    // Calculate time allocation if needed
-    int allocatedTime = calculateMoveTime(limits);
-    
-    // TODO: Replace this with your actual search implementation
-    // For now, just do a simple search
-    
-    std::vector<Move> allMoves = moveGen->generateAllMoves();
-    std::vector<Move> legalMoves = moveGen->filterLegalMoves(allMoves);
-    
-    if (legalMoves.empty()) {
-        searching = false;
-        return;
-    }
-    
-    // Simple evaluation of each move
-    Move bestMove = legalMoves[0];
-    int bestScore = -999999;
-    
-    for (const auto& move : legalMoves) {
-        // Make move
-        board->makeMove(move);
-        
-        // Evaluate
-        int score = -evaluator->evaluate();
-        
-        // Unmake move
-        board->unmakeMove();
-        
-        if (score > bestScore) {
-            bestScore = score;
-            bestMove = move;
-        }
-        
-        // Check time limit
-        if (allocatedTime > 0) {
-            auto elapsed = std::chrono::steady_clock::now() - startTime;
-            auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-            if (elapsedMs >= allocatedTime) {
-                break;
-            }
-        }
-    }
+void ChessEngine::searchThreadFunc(const Search::SearchLimits& limits) {
+    Search::SearchResult result = searcher->search(limits);
     
     // Send best move
-    Utils::sendBestMove(bestMove);
+    if (result.bestMove.from != 0 || result.bestMove.to != 0) {
+        Utils::sendBestMove(result.bestMove);
+    } else {
+        // No legal moves found - might be checkmate or stalemate
+        std::vector<Move> pseudoMoves = moveGen->generateAllMoves();
+        std::vector<Move> legalMoves = moveGen->filterLegalMoves(pseudoMoves);
+        
+        if (!legalMoves.empty()) {
+            Utils::sendBestMove(legalMoves[0]);
+        } else {
+            std::cout << "bestmove (none)" << std::endl;
+        }
+    }
     
     searching = false;
 }
 
-int ChessEngine::calculateMoveTime(const SearchLimits& limits) {
-    // If movetime is specified, use it directly
-    if (limits.movetime > 0) {
-        return limits.movetime;
-    }
-    
-    // If infinite search, return -1
-    if (limits.infinite) {
-        return -1;
-    }
-    
-    // Calculate from time controls
-    int timeRemaining = board->isWhiteTurn() ? limits.wtime : limits.btime;
-    int increment = board->isWhiteTurn() ? limits.winc : limits.binc;
-    
-    if (timeRemaining <= 0) {
-        return -1;
-    }
-    
-    // Simple time management: use 1/30 of remaining time + increment
-    int movesToGo = (limits.movestogo > 0) ? limits.movestogo : 30;
-    int allocatedTime = (timeRemaining / movesToGo) + increment * 0.8;
-    
-    // Don't use more than 1/5 of remaining time
-    allocatedTime = std::min(allocatedTime, timeRemaining / 5);
-    
-    return allocatedTime;
-}
-
 void ChessEngine::stopSearch() {
-    if (searching) {
-        searching = false;
-        
-        // Wait for search thread to finish
-        if (searchThread.joinable()) {
-            searchThread.join();
-        }
+    if (searching && searcher) {
+        searcher->stop();
+    }
+    
+    searching = false;
+    
+    // Wait for search thread to finish
+    if (searchThread.joinable()) {
+        searchThread.join();
     }
 }
 
@@ -250,13 +200,17 @@ void Protocol::run() {
             handleSetOption(iss);
         } else if (command == "quit") {
             handleQuit();
+        } else if (command == "d") {
+            handleDisplay();
+        } else if (command == "perft") {
+            handlePerft(iss);
         }
     }
 }
 
 void Protocol::handleUCI() {
-    std::cout << "id name ChessEngine 1.0" << std::endl;
-    std::cout << "id author YourName" << std::endl;
+    std::cout << "id name ChessAI 1.0" << std::endl;
+    std::cout << "id author Ranadi" << std::endl;
     
     // Send available options
     std::cout << "option name Hash type spin default 128 min 1 max 16384" << std::endl;
@@ -302,33 +256,29 @@ void Protocol::parsePosition(std::istringstream& input, std::string& fen,
     }
     
     // Read moves if present
-    if (token == "moves" || input >> token) {
-        if (token == "moves") {
-            input >> token;
-        }
-        
-        do {
+    if (token == "moves") {
+        while (input >> token) {
             moves.push_back(token);
-        } while (input >> token);
+        }
     }
 }
 
 void Protocol::handleGo(std::istringstream& input) {
-    SearchLimits limits = parseGoLimits(input);
+    Search::SearchLimits limits = parseGoLimits(input);
     engine.startSearch(limits);
 }
 
-SearchLimits Protocol::parseGoLimits(std::istringstream& input) {
-    SearchLimits limits;
+Search::SearchLimits Protocol::parseGoLimits(std::istringstream& input) {
+    Search::SearchLimits limits;
     std::string token;
     
     while (input >> token) {
         if (token == "depth") {
-            input >> limits.depth;
+            input >> limits.maxDepth;
         } else if (token == "movetime") {
-            input >> limits.movetime;
+            input >> limits.moveTime;
         } else if (token == "nodes") {
-            input >> limits.nodes;
+            input >> limits.maxNodes;
         } else if (token == "wtime") {
             input >> limits.wtime;
         } else if (token == "btime") {
@@ -381,6 +331,18 @@ void Protocol::handleQuit() {
     engine.setQuit();
 }
 
+void Protocol::handleDisplay() {
+    // Debug command to display current board (not part of UCI standard)
+    std::cout << "info string Board display not implemented" << std::endl;
+}
+
+void Protocol::handlePerft(std::istringstream& input) {
+    // Perft command for testing move generation
+    int depth = 1;
+    input >> depth;
+    std::cout << "info string Perft not implemented" << std::endl;
+}
+
 // ============================================================================
 // Utils Implementation
 // ============================================================================
@@ -388,37 +350,35 @@ void Protocol::handleQuit() {
 namespace Utils {
 
 std::string moveToUCI(const Move& move) {
-    // TODO: Implement based on your Move class structure
-    // This is a placeholder - you'll need to adapt it to your Move format
+    std::string uci;
     
-    // Example if Move stores from/to squares:
-    // int from = move.getFrom();
-    // int to = move.getTo();
-    // char fromFile = 'a' + (from % 8);
-    // char fromRank = '1' + (from / 8);
-    // char toFile = 'a' + (to % 8);
-    // char toRank = '1' + (to / 8);
-    // 
-    // std::string uci;
-    // uci += fromFile;
-    // uci += fromRank;
-    // uci += toFile;
-    // uci += toRank;
-    // 
-    // // Add promotion piece if applicable
-    // if (move.isPromotion()) {
-    //     uci += move.getPromotionPiece();
-    // }
+    int fromFile = (move.from - 1) % 8;
+    int fromRank = (move.from - 1) / 8;
+    int toFile = (move.to - 1) % 8;
+    int toRank = (move.to - 1) / 8;
     
-    return "e2e4"; // Placeholder
+    uci += static_cast<char>('a' + fromFile);
+    uci += static_cast<char>('1' + fromRank);
+    uci += static_cast<char>('a' + toFile);
+    uci += static_cast<char>('1' + toRank);
+    
+    // Add promotion piece if applicable
+    if (move.type == PROMOTION) {
+        switch (move.promotionPiece) {
+            case white_queen: case black_queen: uci += "q"; break;
+            case white_rook: case black_rook: uci += "r"; break;
+            case white_bishop: case black_bishop: uci += "b"; break;
+            case white_knight: case black_knight: uci += "n"; break;
+            default: break;
+        }
+    }
+    
+    return uci;
 }
 
 Move parseUCIMove(const std::string& uciMove, Board* board) {
-    // TODO: Implement based on your Move class structure
-    // Parse UCI format like "e2e4" or "e7e8q"
-    
     if (uciMove.length() < 4) {
-        return Move(); // Invalid
+        return Move();
     }
     
     int fromFile = uciMove[0] - 'a';
@@ -426,41 +386,75 @@ Move parseUCIMove(const std::string& uciMove, Board* board) {
     int toFile = uciMove[2] - 'a';
     int toRank = uciMove[3] - '1';
     
-    int fromSquare = fromRank * 8 + fromFile;
-    int toSquare = toRank * 8 + toFile;
+    // Validate coordinates
+    if (fromFile < 0 || fromFile > 7 || fromRank < 0 || fromRank > 7 ||
+        toFile < 0 || toFile > 7 || toRank < 0 || toRank > 7) {
+        return Move();
+    }
     
-    // TODO: Create Move object with these squares
-    // Handle promotion if uciMove.length() == 5
+    int fromSquare = fromRank * 8 + fromFile + 1;  // 1-based
+    int toSquare = toRank * 8 + toFile + 1;        // 1-based
     
-    return Move(); // Placeholder
-}
-
-void sendInfo(int depth, int score, long long nodes, int time, 
-              const std::vector<Move>& pv) {
-    std::cout << "info";
-    std::cout << " depth " << depth;
-    std::cout << " score cp " << score;
-    std::cout << " nodes " << nodes;
-    std::cout << " time " << time;
-    std::cout << " nps " << (time > 0 ? (nodes * 1000 / time) : 0);
+    Move move(fromSquare, toSquare, uciMove);
     
-    if (!pv.empty()) {
-        std::cout << " pv";
-        for (const auto& move : pv) {
-            std::cout << " " << moveToUCI(move);
+    // Detect move type
+    int piece = board->getPieceAt(fromSquare);
+    int captured = board->getPieceAt(toSquare);
+    
+    // Check for capture
+    if (captured != -1) {
+        move.type = CAPTURE;
+    }
+    
+    // Check for castling
+    if (piece == white_king || piece == black_king) {
+        int fileDiff = toFile - fromFile;
+        if (std::abs(fileDiff) == 2) {
+            move.type = CASTLING;
         }
     }
     
-    std::cout << std::endl;
+    // Check for pawn special moves
+    if (piece == white_pawn || piece == black_pawn) {
+        // En passant
+        if (fromFile != toFile && captured == -1) {
+            move.type = EN_PASSANT;
+        }
+        
+        // Promotion
+        if (toRank == 7 || toRank == 0) {
+            move.type = PROMOTION;
+            
+            // Default to queen promotion
+            PieceType promoBase = (piece == white_pawn) ? white_queen : black_queen;
+            
+            if (uciMove.length() >= 5) {
+                char promo = uciMove[4];
+                bool isWhite = (piece == white_pawn);
+                
+                switch (promo) {
+                    case 'q': move.promotionPiece = isWhite ? white_queen : black_queen; break;
+                    case 'r': move.promotionPiece = isWhite ? white_rook : black_rook; break;
+                    case 'b': move.promotionPiece = isWhite ? white_bishop : black_bishop; break;
+                    case 'n': move.promotionPiece = isWhite ? white_knight : black_knight; break;
+                    default: move.promotionPiece = promoBase; break;
+                }
+            } else {
+                move.promotionPiece = promoBase;
+            }
+        }
+    }
+    
+    return move;
 }
 
 void sendBestMove(const Move& bestMove, const Move& ponderMove) {
     std::cout << "bestmove " << moveToUCI(bestMove);
     
     // Optionally send ponder move
-    // if (ponderMove is valid) {
-    //     std::cout << " ponder " << moveToUCI(ponderMove);
-    // }
+    if (ponderMove.from != 0 && ponderMove.to != 0) {
+        std::cout << " ponder " << moveToUCI(ponderMove);
+    }
     
     std::cout << std::endl;
 }
